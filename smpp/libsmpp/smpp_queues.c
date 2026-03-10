@@ -355,7 +355,7 @@ void smpp_queues_data_sm_routing_done(void *context, SMPPRouteStatus *smpp_route
                 char submit_date_c_str[13] = {'\0'};
                 struct tm tm_tmp = gw_localtime(smpp_queued_response_pdu->msg->sms.time);
                 gw_strftime(submit_date_c_str, sizeof (submit_date_c_str), "%y%m%d%H%M%S", &tm_tmp);
-                info(0, "%s submit_sm %s %s %s %s %ld %s", octstr_get_cstr(smpp_queued_response_pdu->smpp_esme->system_id),
+                info(0, "submit_sm %s %s %s %s %s %ld %s", octstr_get_cstr(smpp_queued_response_pdu->smpp_esme->system_id),
                         octstr_get_cstr(smpp_uuid_get(smpp_queued_response_pdu->msg->sms.id)),
                         (smpp_queued_response_pdu->msg->sms.sender ? octstr_get_cstr(smpp_queued_response_pdu->msg->sms.sender):""),
                         octstr_get_cstr(smpp_queued_response_pdu->msg->sms.receiver),
@@ -393,7 +393,7 @@ void smpp_queues_data_sm_routing_done(void *context, SMPPRouteStatus *smpp_route
                 char submit_date_c_str[13] = {'\0'};
                 struct tm tm_tmp = gw_localtime(smpp_queued_response_pdu->msg->sms.time);
                 gw_strftime(submit_date_c_str, sizeof (submit_date_c_str), "%y%m%d%H%M%S", &tm_tmp);
-                info(0, "%s submit_sm %s %s %s %s %ld %s", octstr_get_cstr(smpp_queued_response_pdu->smpp_esme->system_id),
+                info(0, "submit_sm %s %s %s %s %s %ld %s", octstr_get_cstr(smpp_queued_response_pdu->smpp_esme->system_id),
                         octstr_get_cstr(smpp_uuid_get(smpp_queued_response_pdu->msg->sms.id)),
                         (smpp_queued_response_pdu->msg->sms.sender ? octstr_get_cstr(smpp_queued_response_pdu->msg->sms.sender):""),
                         octstr_get_cstr(smpp_queued_response_pdu->msg->sms.receiver),

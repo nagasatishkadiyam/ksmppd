@@ -583,7 +583,7 @@ List *smpp_pdu_msg_to_pdu(SMPPEsme *smpp_esme, Msg *msg)
         {
             pdu2 = smpp_pdu_create(deliver_sm, 0);
             //account deliver_sm id source destination route stat err submit_time done_time diff
-            info(0, "%s deliver_sm %s %s %s %s %s %03x %s %s %ld", octstr_get_cstr(smpp_esme->system_id), octstr_get_cstr(msgid2), octstr_get_cstr(pdu->u.deliver_sm.destination_addr), octstr_get_cstr(pdu->u.deliver_sm.source_addr), octstr_get_cstr(msg->sms.smsc_id), octstr_get_cstr(dlr_status), dlr_err, submit_date_c_str, done_date_c_str, (msg->sms.time - dlr_time));
+            info(0, "deliver_sm %s %s %s %s %s %s %03x %s %s %ld", octstr_get_cstr(smpp_esme->system_id), octstr_get_cstr(msgid2), octstr_get_cstr(pdu->u.deliver_sm.destination_addr), octstr_get_cstr(pdu->u.deliver_sm.source_addr), octstr_get_cstr(msg->sms.smsc_id), octstr_get_cstr(dlr_status), dlr_err, submit_date_c_str, done_date_c_str, (msg->sms.time - dlr_time));
             pdu2->u.deliver_sm.esm_class = pdu->u.deliver_sm.esm_class;
             pdu2->u.deliver_sm.source_addr_ton = pdu->u.deliver_sm.dest_addr_ton;
             pdu2->u.deliver_sm.source_addr_npi = pdu->u.deliver_sm.dest_addr_npi;

@@ -254,11 +254,15 @@ List *smpp_database_mysql_get_esmes_with_queued(SMPPServer *smpp_server) {
 
     DBPoolConn *conn;
 
+    /* Only include smpp_store rows for mo/report_mo - messages to deliver TO ESME.
+     * Exclude mt_push: in database-store-primary mode these are outbound MT for external
+     * pickup, not for delivery to ESME. When bearerbox is used, mt_push are for bearerbox. */
     if(octstr_len(smpp_server->database_dlr_table)) {
-        sql = octstr_format("SELECT LOWER(system_id) FROM %S UNION DISTINCT SELECT LOWER(service) FROM %S UNION DISTINCT SELECT LOWER(service) FROM %S",
-            smpp_server->database_pdu_table, smpp_server->database_store_table, smpp_server->database_dlr_table);
+        sql = octstr_format("SELECT LOWER(system_id) FROM %S UNION DISTINCT SELECT LOWER(service) FROM %S WHERE sms_type IN (%ld, %ld) UNION DISTINCT SELECT LOWER(service) FROM %S",
+            smpp_server->database_pdu_table, smpp_server->database_store_table, (long)mo, (long)report_mo, smpp_server->database_dlr_table);
     } else {
-        sql = octstr_format("SELECT LOWER(system_id) FROM %S UNION DISTINCT SELECT LOWER(service) FROM %S", smpp_server->database_pdu_table, smpp_server->database_store_table);
+        sql = octstr_format("SELECT LOWER(system_id) FROM %S UNION DISTINCT SELECT LOWER(service) FROM %S WHERE sms_type IN (%ld, %ld)",
+            smpp_server->database_pdu_table, smpp_server->database_store_table, (long)mo, (long)report_mo);
     }
 
     conn = dbpool_conn_consume(pool);
@@ -501,7 +505,7 @@ List *smpp_database_mysql_get_dlrs(SMPPServer *smpp_server, Octstr *service, lon
 
     sql = octstr_format("SELECT global_id, message_id, service, status, err_code, submit_date, done_date, "
                        "destination_addr, source_addr, smsc_id, text FROM %S "
-                       "WHERE service = ? AND processed = 0 LIMIT %ld",
+                       "WHERE LOWER(service) = LOWER(?) AND processed = 0 LIMIT %ld",
                        smpp_server->database_dlr_table, limit);
 
     gwlist_produce(binds, octstr_duplicate(service));
@@ -512,6 +516,9 @@ List *smpp_database_mysql_get_dlrs(SMPPServer *smpp_server, Octstr *service, lon
 
     octstr_destroy(sql);
     gwlist_destroy(binds, octstr_destroy_item);
+
+    debug("smpp.database.mysql.get.dlrs", 0, "Fetched %ld DLRs for service %s from %s",
+          (long)gwlist_len(results), octstr_get_cstr(service), octstr_get_cstr(smpp_server->database_dlr_table));
 
     if (gwlist_len(results) > 0) {
         while ((row = gwlist_extract_first(results)) != NULL) {
