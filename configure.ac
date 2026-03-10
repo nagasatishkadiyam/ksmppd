@@ -5,7 +5,7 @@ AC_INIT([ksmppd], [1.4.4], [kneodev@gmail.com], [ksmppd], [https://github.com/kn
 # Put autotools auxiliary files in a subdir, so they don't clutter top dir:
 AC_CONFIG_AUX_DIR([build-aux])
 # Initialise Automake with Default version Number and Default CPP flags
-AM_INIT_AUTOMAKE([1.11 -Wall -Werror subdir-objects])
+AM_INIT_AUTOMAKE([1.11 -Wall -Werror subdir-objects foreign])
 # Check for some Unique file in the Project
 AC_CONFIG_SRCDIR([smpp/])
 # Check for C Compiler
