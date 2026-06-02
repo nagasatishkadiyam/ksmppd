@@ -74,6 +74,7 @@ extern "C" {
 
     time_t smpp_time_to_c_time(const char *smpp_time_cstr);
     int parse_dlr_short_message(Octstr *short_message, Octstr **id, unsigned int *sub, unsigned int *dlvrd, time_t *submit_date, time_t *done_date, Octstr **stat, unsigned int *err, Octstr **text);
+    void smpp_pdu_log_deliver_sm_resp(SMPPEsme *smpp_esme, SMPP_PDU *pdu, long command_status, long time_sent);
 #ifdef __cplusplus
 }
 #endif

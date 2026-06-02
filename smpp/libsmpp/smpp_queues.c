@@ -132,6 +132,9 @@ void smpp_queues_process_ack(SMPPEsme *smpp_esme, long sequence_number, long com
     debug("smpp.queues.process.ack", 0, "SMPP[%s:%ld] Processing ack %s",smpp_esme_log_label(smpp_esme), smpp_esme->id, octstr_get_cstr(key));
     
     if(smpp_queued_pdu) {
+        if(smpp_queued_pdu->pdu && smpp_queued_pdu->pdu->type == deliver_sm) {
+            smpp_pdu_log_deliver_sm_resp(smpp_esme, smpp_queued_pdu->pdu, command_status, smpp_queued_pdu->time_sent);
+        }
         if(smpp_queued_pdu->callback) {
             smpp_queued_pdu->callback(smpp_queued_pdu, command_status);
         }

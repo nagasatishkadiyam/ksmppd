@@ -1248,14 +1248,16 @@ void smpp_pdu_log_deliver_sm_resp(SMPPEsme *smpp_esme, SMPP_PDU *pdu, long comma
                 tm_tmp = gw_localtime(submit_ts);
                 gw_strftime(submit_date_c_str, sizeof(submit_date_c_str), "%y%m%d%H%M%S", &tm_tmp);
             } else {
-                gw_snprintf(submit_date_c_str, sizeof(submit_date_c_str), "-");
+                submit_date_c_str[0] = '-';
+                submit_date_c_str[1] = '\0';
             }
             if (done_ts > 0) {
                 tm_tmp = gw_localtime(done_ts);
                 gw_strftime(done_date_c_str, sizeof(done_date_c_str), "%y%m%d%H%M%S", &tm_tmp);
                 delay_sec = (long) (time(NULL) - done_ts);
             } else {
-                gw_snprintf(done_date_c_str, sizeof(done_date_c_str), "-");
+                done_date_c_str[0] = '-';
+                done_date_c_str[1] = '\0';
             }
             if (submit_ts > 0 && done_ts > 0) {
                 latency_sec = (long) (done_ts - submit_ts);
@@ -1264,12 +1266,16 @@ void smpp_pdu_log_deliver_sm_resp(SMPPEsme *smpp_esme, SMPP_PDU *pdu, long comma
                 stat_str = octstr_get_cstr(dlr_stat);
             }
         } else {
-            gw_snprintf(submit_date_c_str, sizeof(submit_date_c_str), "-");
-            gw_snprintf(done_date_c_str, sizeof(done_date_c_str), "-");
+            submit_date_c_str[0] = '-';
+            submit_date_c_str[1] = '\0';
+            done_date_c_str[0] = '-';
+            done_date_c_str[1] = '\0';
         }
     } else {
-        gw_snprintf(submit_date_c_str, sizeof(submit_date_c_str), "-");
-        gw_snprintf(done_date_c_str, sizeof(done_date_c_str), "-");
+        submit_date_c_str[0] = '-';
+        submit_date_c_str[1] = '\0';
+        done_date_c_str[0] = '-';
+        done_date_c_str[1] = '\0';
     }
 
     if (!log_msg_id) {
