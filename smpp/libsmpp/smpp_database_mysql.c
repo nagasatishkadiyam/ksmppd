@@ -74,6 +74,7 @@
 #include "gw/dlr.h"
 #include "smpp_database.h"
 #include "smpp_route.h"
+#include "smpp_pdu_util.h"
 
 /* dbpool_mysql passes string binds without MYSQL_BIND.length; embedded 0x00
  * truncates. Store affected binary columns as percent-encoded ASCII (%XX per byte).
@@ -551,6 +552,23 @@ List *smpp_database_mysql_get_stored(SMPPServer *smpp_server, long sms_type, Oct
     return messages;
 }
 
+static Octstr *smpp_database_mysql_format_dlr_date(Octstr *date_os)
+{
+    char smpp_date[16];
+    time_t t;
+
+    if (!date_os || !octstr_len(date_os)) {
+        return octstr_create("000000000000");
+    }
+    t = smpp_time_to_c_time(octstr_get_cstr(date_os));
+    if (t > 0) {
+        struct tm tm_tmp = gw_localtime(t);
+        gw_strftime(smpp_date, sizeof(smpp_date), "%y%m%d%H%M%S", &tm_tmp);
+        return octstr_create(smpp_date);
+    }
+    return octstr_duplicate(date_os);
+}
+
 List *smpp_database_mysql_get_dlrs(SMPPServer *smpp_server, Octstr *service, long limit) {
     SMPPDatabase *smpp_database = smpp_server->database;
     if(!octstr_len(smpp_server->database_dlr_table)) {
@@ -571,6 +589,8 @@ List *smpp_database_mysql_get_dlrs(SMPPServer *smpp_server, Octstr *service, lon
     Octstr *submit_date_os;
     Octstr *done_date_os;
     Octstr *text_os;
+    time_t submit_time;
+    time_t done_time;
 
     if(!limit) {
         limit = SMPP_DATABASE_BATCH_LIMIT;
@@ -605,14 +625,20 @@ List *smpp_database_mysql_get_dlrs(SMPPServer *smpp_server, Octstr *service, lon
             msg->sms.receiver = octstr_duplicate(gwlist_get(row, 7) ? gwlist_get(row, 7) : octstr_imm(""));
             msg->sms.sender = octstr_duplicate(gwlist_get(row, 8) ? gwlist_get(row, 8) : octstr_imm(""));
             msg->sms.smsc_id = octstr_duplicate(gwlist_get(row, 9) ? gwlist_get(row, 9) : octstr_imm(""));
-            msg->sms.time = time(NULL);
-
-            submit_date_os = gwlist_get(row, 5);
-            done_date_os = gwlist_get(row, 6);
+            submit_date_os = smpp_database_mysql_format_dlr_date(gwlist_get(row, 5));
+            done_date_os = smpp_database_mysql_format_dlr_date(gwlist_get(row, 6));
             text_os = gwlist_get(row, 10);
-            if(!submit_date_os) submit_date_os = octstr_imm("00000000000000");
-            if(!done_date_os) done_date_os = octstr_imm("00000000000000");
             if(!text_os) text_os = octstr_imm("");
+
+            submit_time = smpp_time_to_c_time(octstr_get_cstr(submit_date_os));
+            done_time = smpp_time_to_c_time(octstr_get_cstr(done_date_os));
+            if (submit_time > 0) {
+                msg->sms.time = submit_time;
+            } else if (done_time > 0) {
+                msg->sms.time = done_time;
+            } else {
+                msg->sms.time = time(NULL);
+            }
 
             if(gwlist_get(row, 3) && octstr_case_compare(gwlist_get(row, 3), octstr_imm("DELIVRD")) == 0) {
                 dlr_mask = DLR_SUCCESS;
@@ -647,6 +673,8 @@ List *smpp_database_mysql_get_dlrs(SMPPServer *smpp_server, Octstr *service, lon
 
             smpp_database_msg->msg = msg;
             gwlist_produce(messages, smpp_database_msg);
+            octstr_destroy(submit_date_os);
+            octstr_destroy(done_date_os);
             gwlist_destroy(row, octstr_destroy_item);
         }
     }

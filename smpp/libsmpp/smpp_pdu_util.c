@@ -538,15 +538,17 @@ List *smpp_pdu_msg_to_pdu(SMPPEsme *smpp_esme, Msg *msg)
         unsigned int dlr_dlvrd = 0;
         time_t dlr_submit_date = 0;
         time_t dlr_done_date = 0;
+        time_t submit_ts = 0;
+        time_t done_ts = 0;
         Octstr *dlr_stat = NULL;
         unsigned int dlr_err = 0;
         Octstr *dlr_text = NULL;
         int dlr_parse_result = parse_dlr_short_message(msg->sms.msgdata, &dlr_id, &dlr_sub, &dlr_dlvrd, &dlr_submit_date, &dlr_done_date, &dlr_stat, &dlr_err, &dlr_text);
-        tm_tmp = gw_localtime(dlr_time);
-        gw_strftime(submit_date_c_str, sizeof(submit_date_c_str), "%y%m%d%H%M%S", &tm_tmp);
         if (dlr_parse_result == -1)
         {
             error(0, "[%s] DLR Parsing Failed for %s. Please Report", smpp_esme_log_label(smpp_esme), octstr_get_cstr(msg->sms.msgdata));
+            tm_tmp = gw_localtime(dlr_time);
+            gw_strftime(submit_date_c_str, sizeof(submit_date_c_str), "%y%m%d%H%M%S", &tm_tmp);
             tm_tmp = gw_localtime(msg->sms.time);
             gw_strftime(done_date_c_str, sizeof(done_date_c_str), "%y%m%d%H%M%S", &tm_tmp);
             smpp_pdu_destroy(pdu);
@@ -566,7 +568,12 @@ List *smpp_pdu_msg_to_pdu(SMPPEsme *smpp_esme, Msg *msg)
         }
         else
         {
-            tm_tmp = gw_localtime(dlr_done_date);
+            submit_ts = (dlr_submit_date > 0) ? dlr_submit_date : dlr_time;
+            done_ts = (dlr_done_date > 0) ? dlr_done_date : msg->sms.time;
+
+            tm_tmp = gw_localtime(submit_ts);
+            gw_strftime(submit_date_c_str, sizeof(submit_date_c_str), "%y%m%d%H%M%S", &tm_tmp);
+            tm_tmp = gw_localtime(done_ts);
             gw_strftime(done_date_c_str, sizeof(done_date_c_str), "%y%m%d%H%M%S", &tm_tmp);
         }
 
@@ -582,8 +589,8 @@ List *smpp_pdu_msg_to_pdu(SMPPEsme *smpp_esme, Msg *msg)
         while ((msgid2 = gwlist_extract_first(parts)) != NULL)
         {
             pdu2 = smpp_pdu_create(deliver_sm, 0);
-            /* account deliver_sm msg_id source destination route stat err submit_time done_time age_sec */
-            info(0, "%s deliver_sm %s %s %s %s %s %03x %s %s %ld",
+            /* account deliver_sm msg_id source destination route stat err submit_time done_time delay_sec latency_sec */
+            info(0, "%s deliver_sm %s %s %s %s %s %03x %s %s %ld %ld",
                  smpp_esme_log_label(smpp_esme),
                  octstr_get_cstr(msgid2),
                  octstr_get_cstr(pdu->u.deliver_sm.source_addr),
@@ -593,7 +600,8 @@ List *smpp_pdu_msg_to_pdu(SMPPEsme *smpp_esme, Msg *msg)
                  dlr_err,
                  submit_date_c_str,
                  done_date_c_str,
-                 (long) (msg->sms.time - dlr_time));
+                 (long) (time(NULL) - done_ts),
+                 (long) (done_ts - submit_ts));
             pdu2->u.deliver_sm.esm_class = pdu->u.deliver_sm.esm_class;
             pdu2->u.deliver_sm.source_addr_ton = pdu->u.deliver_sm.dest_addr_ton;
             pdu2->u.deliver_sm.source_addr_npi = pdu->u.deliver_sm.dest_addr_npi;
@@ -1190,6 +1198,104 @@ int parse_dlr_short_message(Octstr *short_message, Octstr **id, unsigned int *su
         return -1;
     }
     return 0;
+}
+
+void smpp_pdu_log_deliver_sm_resp(SMPPEsme *smpp_esme, SMPP_PDU *pdu, long command_status, long time_sent)
+{
+    char submit_date_c_str[13] = {'\0'};
+    char done_date_c_str[13] = {'\0'};
+    struct tm tm_tmp;
+    time_t submit_ts = 0;
+    time_t done_ts = 0;
+    long ack_sec = 0;
+    long delay_sec = 0;
+    long latency_sec = 0;
+    Octstr *log_msg_id = NULL;
+    Octstr *dlr_id = NULL;
+    Octstr *dlr_stat = NULL;
+    Octstr *dlr_text = NULL;
+    unsigned int dlr_sub = 0;
+    unsigned int dlr_dlvrd = 0;
+    unsigned int dlr_err = 0;
+    const char *stat_str = "-";
+    const char *route_str = "-";
+
+    if (!smpp_esme || !pdu || pdu->type != deliver_sm) {
+        return;
+    }
+
+    if (time_sent > 0) {
+        ack_sec = (long) difftime(time(NULL), (time_t) time_sent);
+    }
+
+    if (octstr_len(pdu->u.deliver_sm.service_type)) {
+        route_str = octstr_get_cstr(pdu->u.deliver_sm.service_type);
+    }
+
+    if (octstr_len(pdu->u.deliver_sm.receipted_message_id)) {
+        log_msg_id = octstr_duplicate(pdu->u.deliver_sm.receipted_message_id);
+    }
+
+    if (pdu->u.deliver_sm.esm_class & (0x04|0x08|0x20)) {
+        if (parse_dlr_short_message(pdu->u.deliver_sm.short_message, &dlr_id, &dlr_sub, &dlr_dlvrd,
+                                    &submit_ts, &done_ts, &dlr_stat, &dlr_err, &dlr_text) == 0) {
+            if (!log_msg_id && dlr_id) {
+                log_msg_id = octstr_duplicate(dlr_id);
+            }
+            submit_ts = (submit_ts > 0) ? submit_ts : 0;
+            done_ts = (done_ts > 0) ? done_ts : 0;
+            if (submit_ts > 0) {
+                tm_tmp = gw_localtime(submit_ts);
+                gw_strftime(submit_date_c_str, sizeof(submit_date_c_str), "%y%m%d%H%M%S", &tm_tmp);
+            } else {
+                gw_snprintf(submit_date_c_str, sizeof(submit_date_c_str), "-");
+            }
+            if (done_ts > 0) {
+                tm_tmp = gw_localtime(done_ts);
+                gw_strftime(done_date_c_str, sizeof(done_date_c_str), "%y%m%d%H%M%S", &tm_tmp);
+                delay_sec = (long) (time(NULL) - done_ts);
+            } else {
+                gw_snprintf(done_date_c_str, sizeof(done_date_c_str), "-");
+            }
+            if (submit_ts > 0 && done_ts > 0) {
+                latency_sec = (long) (done_ts - submit_ts);
+            }
+            if (dlr_stat && octstr_len(dlr_stat)) {
+                stat_str = octstr_get_cstr(dlr_stat);
+            }
+        } else {
+            gw_snprintf(submit_date_c_str, sizeof(submit_date_c_str), "-");
+            gw_snprintf(done_date_c_str, sizeof(done_date_c_str), "-");
+        }
+    } else {
+        gw_snprintf(submit_date_c_str, sizeof(submit_date_c_str), "-");
+        gw_snprintf(done_date_c_str, sizeof(done_date_c_str), "-");
+    }
+
+    if (!log_msg_id) {
+        log_msg_id = octstr_create("-");
+    }
+
+    /* account deliver_sm_resp msg_id source destination route stat err submit_time done_time delay_sec latency_sec ack_sec command_status */
+    info(0, "%s deliver_sm_resp %s %s %s %s %s %03x %s %s %ld %ld %ld %08lx",
+         smpp_esme_log_label(smpp_esme),
+         octstr_get_cstr(log_msg_id),
+         octstr_get_cstr(pdu->u.deliver_sm.source_addr),
+         octstr_get_cstr(pdu->u.deliver_sm.destination_addr),
+         route_str,
+         stat_str,
+         dlr_err,
+         submit_date_c_str,
+         done_date_c_str,
+         delay_sec,
+         latency_sec,
+         ack_sec,
+         (unsigned long) command_status);
+
+    octstr_destroy(log_msg_id);
+    octstr_destroy(dlr_id);
+    octstr_destroy(dlr_stat);
+    octstr_destroy(dlr_text);
 }
 
 time_t smpp_time_to_c_time(const char *smpp_time_cstr)
