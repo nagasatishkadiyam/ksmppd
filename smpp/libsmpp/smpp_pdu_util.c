@@ -1304,6 +1304,73 @@ void smpp_pdu_log_deliver_sm_resp(SMPPEsme *smpp_esme, SMPP_PDU *pdu, long comma
     octstr_destroy(dlr_text);
 }
 
+void smpp_pdu_log_submit_sm_resp(SMPPEsme *smpp_esme, SMPP_PDU *pdu, Msg *msg)
+{
+    char submit_date_c_str[13] = {'\0'};
+    struct tm tm_tmp;
+    time_t submit_ts = 0;
+    long latency_sec = 0;
+    long length = 0;
+    Octstr *log_msg_id = NULL;
+    const char *sender = "-";
+    const char *receiver = "-";
+    const char *route = "-";
+
+    if (!smpp_esme || !pdu || pdu->type != submit_sm_resp) {
+        return;
+    }
+
+    if (octstr_len(pdu->u.submit_sm_resp.message_id)) {
+        log_msg_id = octstr_duplicate(pdu->u.submit_sm_resp.message_id);
+    }
+
+    if (msg) {
+        if (!log_msg_id) {
+            log_msg_id = smpp_uuid_get(msg->sms.id);
+        }
+        if (msg->sms.sender && octstr_len(msg->sms.sender)) {
+            sender = octstr_get_cstr(msg->sms.sender);
+        }
+        if (octstr_len(msg->sms.receiver)) {
+            receiver = octstr_get_cstr(msg->sms.receiver);
+        }
+        if (octstr_len(msg->sms.smsc_id)) {
+            route = octstr_get_cstr(msg->sms.smsc_id);
+        }
+        length = octstr_len(msg->sms.msgdata);
+        submit_ts = msg->sms.time;
+        if (submit_ts > 0) {
+            tm_tmp = gw_localtime(submit_ts);
+            gw_strftime(submit_date_c_str, sizeof(submit_date_c_str), "%y%m%d%H%M%S", &tm_tmp);
+            latency_sec = (long) (time(NULL) - submit_ts);
+        } else {
+            submit_date_c_str[0] = '-';
+            submit_date_c_str[1] = '\0';
+        }
+    } else {
+        submit_date_c_str[0] = '-';
+        submit_date_c_str[1] = '\0';
+    }
+
+    if (!log_msg_id) {
+        log_msg_id = octstr_create("-");
+    }
+
+    /* account submit_sm_resp msg_id sender receiver route length submit_time latency_sec command_status */
+    info(0, "%s submit_sm_resp %s %s %s %s %ld %s %ld %08lx",
+         smpp_esme_log_label(smpp_esme),
+         octstr_get_cstr(log_msg_id),
+         sender,
+         receiver,
+         route,
+         length,
+         submit_date_c_str,
+         latency_sec,
+         (unsigned long) pdu->u.submit_sm_resp.command_status);
+
+    octstr_destroy(log_msg_id);
+}
+
 time_t smpp_time_to_c_time(const char *smpp_time_cstr)
 {
     char year[3] = {0};

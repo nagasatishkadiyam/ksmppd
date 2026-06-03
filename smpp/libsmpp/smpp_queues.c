@@ -960,6 +960,10 @@ void smpp_queues_outbound_thread(void *arg) {
                 callback = 0;
             }
 
+            if (smpp_queued_pdu->pdu->type == submit_sm_resp) {
+                smpp_pdu_log_submit_sm_resp(smpp_esme, smpp_queued_pdu->pdu, smpp_queued_pdu->msg);
+            }
+
             smpp_queues_send_pdu(smpp_queued_pdu->smpp_esme->conn, smpp_queued_pdu->smpp_esme->system_id, smpp_queued_pdu->pdu);
 
             if (disconnect) {
